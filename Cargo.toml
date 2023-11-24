@@ -1,0 +1,14 @@
+[package]
+name = "mandelbrot"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+image = "0.24.7"
+lerp = "0.5.0"
+num = "0.4.1"
+num-complex = "0.4.4"
+num-traits = "0.2.17"
+ordered-float = "4.1.1"
