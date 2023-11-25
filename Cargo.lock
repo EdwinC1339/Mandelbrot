@@ -235,8 +235,10 @@ dependencies = [
  "mut-binary-heap",
  "num",
  "num-complex",
+ "num-rational",
  "num-traits",
  "ordered-float",
+ "rayon",
 ]
 
 [[package]]

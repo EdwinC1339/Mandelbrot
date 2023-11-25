@@ -1,7 +1,9 @@
 use std::collections::{HashMap, BTreeSet};
+use rayon::prelude::*;
 
 use num_complex::{Complex64, ComplexFloat};
-use lerp::{Lerp, LerpIter};
+use num_rational::{Rational64, Ratio};
+use lerp::Lerp;
 use image::{ImageBuffer, Rgb};
 use num_traits::{Float, ToPrimitive};
 use ordered_float::NotNan;
@@ -94,14 +96,18 @@ impl Palette {
     fn get_color(&self, k: NotNan<f64>) -> Rgb<u8> {
         let mut prev_key: &NotNan<f64> = self._keys.first().unwrap();
 
+        if k <= *prev_key {
+            return *self._key_map.get(prev_key).unwrap()
+        }
+
         for cur_key in &self._keys {
             if cur_key >= &k {
                 let prev_color: &Rgb<u8> = self._key_map.get(prev_key).unwrap();
                 let cur_color: &Rgb<u8> = self._key_map.get(cur_key).unwrap();
-                let t: NotNan<f64> = (k - prev_key) / (cur_key - prev_key);
+                let interpolation_factor: NotNan<f64> = (k - prev_key) / (cur_key - prev_key);
                 let prev_color_mathy: MathyColor<f64> = MathyColor::from_ref(prev_color);
                 let cur_color_mathy: MathyColor<f64> = MathyColor::from_ref(cur_color);
-                return prev_color_mathy.lerp(cur_color_mathy, *t).unwrap();
+                return prev_color_mathy.lerp(cur_color_mathy, *interpolation_factor).unwrap();
             }
             prev_key = cur_key;
         }
@@ -110,23 +116,27 @@ impl Palette {
 
 }
 fn main() {
-    let width: i32 = 1920;
-    let height: i32 = 1080;
-    let threshold: f64 = 300.0;
+    let width: i32 = 3840;
+    let height: i32 = 2160;
+    let threshold: f64 = 2.0;
     let velocities: Vec<Vec<i32>> = get_divergence_vel(width, height, threshold);
     let mut palette: Palette = Palette::new();
 
     let cols: Vec<Rgb<u8>> = vec![
         Rgb([72, 67, 73]),
         Rgb([72, 67, 73]),
+        Rgb([138, 243, 255]),
         Rgb([255, 89, 100]),
-        Rgb([72, 67, 73])
+        Rgb([24, 169, 153]),
+        Rgb([247, 240, 240])
         ];
     
     let col_keys: Vec<NotNan<f64>> = vec![
         NotNan::try_from(0.0).unwrap(),
-        NotNan::try_from(0.1).unwrap(),
-        NotNan::try_from(0.5).unwrap(),
+        NotNan::try_from(0.15).unwrap(),
+        NotNan::try_from(0.2).unwrap(),
+        NotNan::try_from(0.6).unwrap(),
+        NotNan::try_from(0.3).unwrap(),
         NotNan::try_from(1.0).unwrap()
     ];
 
@@ -143,31 +153,57 @@ fn main() {
     imgbuf.save(format!("mandelbrot{width}x{height}.png")).unwrap();
 }
 
-fn get_divergence_vel(width: i32, height: i32, threshold: f64) -> Vec<Vec<i32>> {
-    let mut rows: Vec<Vec<i32>> = Vec::new();
-    let aspect_ratio: f64 = width as f64 / height as f64;
-    let bottom: f64 = -3.0;
-    let left: f64 = bottom / aspect_ratio;
-    
-    for major_axis in left.lerp_iter(-left, height as usize) {
-        let mut row: Vec<i32> = Vec::new();
-        for minor_axis in bottom.lerp_iter(-bottom, width as usize) {
-            let c: C64 = C64::new(minor_axis, major_axis);
-            let divergence_vel: i32 = diverges_in(c, threshold);
-            row.push(divergence_vel);
-        }
-        rows.push(row);
-    }
+fn transform(base: C64) -> C64 {
+    base
+}
 
-    rows
+fn get_divergence_vel(width: i32, height: i32, threshold: f64) -> Vec<Vec<i32>> 
+{
+    let aspect_ratio: Rational64 = Rational64::new(
+        width as i64,
+        height as i64
+    );
+    let y_scale: Rational64 = Rational64::new(112, 100);
+    let x_scale: Rational64 = y_scale * aspect_ratio;
+    
+    let grid: Vec<_> = (0..height)
+        .map(|h: i32| -> Vec<_> {
+            let y = Rational64::new(2 * h as i64, height as i64) * y_scale - y_scale;
+            (0..width).map(|w: i32| -> (Rational64, Rational64) {
+                let x = Rational64::new(2 * w as i64, width as i64) * x_scale - x_scale;
+                (x, y)
+            }).collect()
+        }).collect();
+
+    grid.par_iter().map(
+        |row| -> Vec<i32> {
+            row.into_iter().map(|c: &(Ratio<i64>, Ratio<i64>)| -> i32{
+                let (re, im) = c;
+                let re: f64 = re.to_f64().expect("Couldn't cast to float.");
+                let im: f64 = im.to_f64().expect("Couldn't cast to float");
+                let c = transform(C64::new(re, im));
+                diverges_in(c, threshold)
+            }).collect()
+        }
+    ).collect()
 }
 
 fn diverges_in(c: C64, threshold: f64) -> i32 {
     let mut count: i32 = 0;
     let mut accumulator: C64 = c;
+    let mut d1: C64 = C64::new(0.0, 0.0);
+    let mut d2: C64;
 
     while accumulator.abs() < threshold && count < ITERMAX {
-        accumulator = next_mandelbrot(accumulator, c);
+        let next_accumulator = next_mandelbrot(accumulator, c);
+        let d = next_accumulator - accumulator;
+        d2 = d1;
+        d1 = d;
+        let second_d = d2 - d1;
+        if second_d.abs() < 0.05 {
+            //return ITERMAX
+        }
+        accumulator = next_accumulator;
         count += 1;
     }
 
