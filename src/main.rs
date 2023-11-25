@@ -175,9 +175,9 @@ fn get_divergence_vel(width: i32, height: i32, threshold: f64) -> Vec<Vec<i32>>
             }).collect()
         }).collect();
 
-    grid.par_iter().map(
+    grid.into_par_iter().map(
         |row| -> Vec<i32> {
-            row.into_iter().map(|c: &(Ratio<i64>, Ratio<i64>)| -> i32{
+            row.into_par_iter().map(|c: (Ratio<i64>, Ratio<i64> ) | -> i32{
                 let (re, im) = c;
                 let re: f64 = re.to_f64().expect("Couldn't cast to float.");
                 let im: f64 = im.to_f64().expect("Couldn't cast to float");
