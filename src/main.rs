@@ -1,10 +1,10 @@
-use std::collections::{HashMap, BTreeSet};
 use rayon::prelude::*;
+use std::collections::{BTreeSet, HashMap};
 
-use num_complex::{Complex64, ComplexFloat};
-use num_rational::{Rational64, Ratio};
-use lerp::Lerp;
 use image::{ImageBuffer, Rgb};
+use lerp::Lerp;
+use num_complex::{Complex64, ComplexFloat};
+use num_rational::{Ratio, Rational64};
 use num_traits::{Float, ToPrimitive};
 use ordered_float::NotNan;
 
@@ -15,21 +15,22 @@ const ITERMAX: i32 = 100;
 struct MathyColor<F> {
     r: F,
     g: F,
-    b: F
+    b: F,
 }
 
-impl<F> MathyColor<F> 
-where F: Float + ToPrimitive
+impl<F> MathyColor<F>
+where
+    F: Float + ToPrimitive,
 {
     fn new(r: F, g: F, b: F) -> Self {
-        Self {r, g, b}
+        Self { r, g, b }
     }
 
     // fn from(other: Rgb<u8>) -> Self {
     //     Self {
     //         r: F::from(other.0[0]).unwrap(),
     //         g: F::from(other.0[1]).unwrap(),
-    //         b: F::from(other.0[2]).unwrap() 
+    //         b: F::from(other.0[2]).unwrap()
     //     }
     // }
 
@@ -37,39 +38,36 @@ where F: Float + ToPrimitive
         Self {
             r: F::from(other.0[0]).unwrap(),
             g: F::from(other.0[1]).unwrap(),
-            b: F::from(other.0[2]).unwrap()
+            b: F::from(other.0[2]).unwrap(),
         }
     }
 
     fn unwrap(&self) -> Rgb<u8> {
-        Rgb([self.r.round().to_u8().unwrap(), self.g.round().to_u8().unwrap(), self.b.round().to_u8().unwrap()])
+        Rgb([
+            self.r.round().to_u8().unwrap(),
+            self.g.round().to_u8().unwrap(),
+            self.b.round().to_u8().unwrap(),
+        ])
     }
-
 }
 
-impl<F> std::ops::Add for MathyColor<F> 
-where F: Float
+impl<F> std::ops::Add for MathyColor<F>
+where
+    F: Float,
 {
     type Output = Self;
     fn add(self, rhs: Self) -> Self::Output {
-        MathyColor::new(
-            self.r + rhs.r,
-            self.g + rhs.g,
-            self.b + rhs.b
-        )
+        MathyColor::new(self.r + rhs.r, self.g + rhs.g, self.b + rhs.b)
     }
 }
 
 impl<F> std::ops::Mul<F> for MathyColor<F>
-where F: Float
+where
+    F: Float,
 {
     type Output = Self;
     fn mul(self, rhs: F) -> Self::Output {
-        MathyColor::new(
-            self.r * rhs,
-            self.g * rhs,
-            self.b * rhs
-        )
+        MathyColor::new(self.r * rhs, self.g * rhs, self.b * rhs)
     }
 }
 
@@ -77,14 +75,14 @@ where F: Float
 struct Palette {
     /* Collection of x, color pairs with 0 <= x <= 1 */
     _keys: BTreeSet<NotNan<f64>>,
-    _key_map: HashMap<NotNan<f64>, Rgb<u8>>
+    _key_map: HashMap<NotNan<f64>, Rgb<u8>>,
 }
 
 impl Palette {
-    fn new() -> Palette{
+    fn new() -> Palette {
         Palette {
             _keys: BTreeSet::new(),
-            _key_map: HashMap::new()
+            _key_map: HashMap::new(),
         }
     }
 
@@ -97,7 +95,7 @@ impl Palette {
         let mut prev_key: &NotNan<f64> = self._keys.first().unwrap();
 
         if k <= *prev_key {
-            return *self._key_map.get(prev_key).unwrap()
+            return *self._key_map.get(prev_key).unwrap();
         }
 
         for cur_key in &self._keys {
@@ -107,13 +105,14 @@ impl Palette {
                 let interpolation_factor: NotNan<f64> = (k - prev_key) / (cur_key - prev_key);
                 let prev_color_mathy: MathyColor<f64> = MathyColor::from_ref(prev_color);
                 let cur_color_mathy: MathyColor<f64> = MathyColor::from_ref(cur_color);
-                return prev_color_mathy.lerp(cur_color_mathy, *interpolation_factor).unwrap();
+                return prev_color_mathy
+                    .lerp(cur_color_mathy, *interpolation_factor)
+                    .unwrap();
             }
             prev_key = cur_key;
         }
         panic!()
     }
-
 }
 fn main() {
     let width: i32 = 3840;
@@ -123,69 +122,72 @@ fn main() {
     let mut palette: Palette = Palette::new();
 
     let cols: Vec<Rgb<u8>> = vec![
-        Rgb([72, 67, 73]),
-        Rgb([72, 67, 73]),
-        Rgb([138, 243, 255]),
-        Rgb([255, 89, 100]),
-        Rgb([24, 169, 153]),
-        Rgb([247, 240, 240])
-        ];
-    
+        Rgb([229, 208, 204]),
+        Rgb([229, 208, 204]),
+        Rgb([23, 33, 33]),
+    ];
+
     let col_keys: Vec<NotNan<f64>> = vec![
         NotNan::try_from(0.0).unwrap(),
         NotNan::try_from(0.15).unwrap(),
-        NotNan::try_from(0.2).unwrap(),
-        NotNan::try_from(0.6).unwrap(),
-        NotNan::try_from(0.3).unwrap(),
-        NotNan::try_from(1.0).unwrap()
+        NotNan::try_from(1.0).unwrap(),
     ];
 
     for (k, v) in std::iter::zip(col_keys.into_iter(), cols.into_iter()) {
         palette.add_col(k, &v);
     }
 
-    let mut imgbuf: ImageBuffer<_, Vec<_>> = ImageBuffer::new(width.try_into().unwrap(), height.try_into().unwrap());
+    let mut imgbuf: ImageBuffer<_, Vec<_>> =
+        ImageBuffer::new(width.try_into().unwrap(), height.try_into().unwrap());
     for (x, y, pixel) in imgbuf.enumerate_pixels_mut() {
         let velocity: i32 = velocities[y as usize][x as usize];
         *pixel = gradient(velocity, &palette);
     }
 
-    imgbuf.save(format!("mandelbrot{width}x{height}.png")).unwrap();
+    imgbuf
+        .save(format!("mandelbrot{width}x{height}.png"))
+        .unwrap();
 }
 
 fn transform(base: C64) -> C64 {
-    base
+    let base = (base + C64::new(0.0, -0.53)) * C64::i();
+    if base.abs() == 0.0 {
+        C64::new(10.0, 10.0)
+    } else {
+        0.4 / base
+    }
 }
 
-fn get_divergence_vel(width: i32, height: i32, threshold: f64) -> Vec<Vec<i32>> 
-{
-    let aspect_ratio: Rational64 = Rational64::new(
-        width as i64,
-        height as i64
-    );
+fn get_divergence_vel(width: i32, height: i32, threshold: f64) -> Vec<Vec<i32>> {
+    let aspect_ratio: Rational64 = Rational64::new(width as i64, height as i64);
     let y_scale: Rational64 = Rational64::new(112, 100);
     let x_scale: Rational64 = y_scale * aspect_ratio;
-    
+
     let grid: Vec<_> = (0..height)
         .map(|h: i32| -> Vec<_> {
             let y = Rational64::new(2 * h as i64, height as i64) * y_scale - y_scale;
-            (0..width).map(|w: i32| -> (Rational64, Rational64) {
-                let x = Rational64::new(2 * w as i64, width as i64) * x_scale - x_scale;
-                (x, y)
-            }).collect()
-        }).collect();
+            (0..width)
+                .map(|w: i32| -> (Rational64, Rational64) {
+                    let x = Rational64::new(2 * w as i64, width as i64) * x_scale - x_scale;
+                    (x, y)
+                })
+                .collect()
+        })
+        .collect();
 
-    grid.into_par_iter().map(
-        |row| -> Vec<i32> {
-            row.into_par_iter().map(|c: (Ratio<i64>, Ratio<i64> ) | -> i32{
-                let (re, im) = c;
-                let re: f64 = re.to_f64().expect("Couldn't cast to float.");
-                let im: f64 = im.to_f64().expect("Couldn't cast to float");
-                let c = transform(C64::new(re, im));
-                diverges_in(c, threshold)
-            }).collect()
-        }
-    ).collect()
+    grid.into_par_iter()
+        .map(|row| -> Vec<i32> {
+            row.into_par_iter()
+                .map(|c: (Ratio<i64>, Ratio<i64>)| -> i32 {
+                    let (re, im) = c;
+                    let re: f64 = re.to_f64().expect("Couldn't cast to float.");
+                    let im: f64 = im.to_f64().expect("Couldn't cast to float");
+                    let c = transform(C64::new(re, im));
+                    diverges_in(c, threshold)
+                })
+                .collect()
+        })
+        .collect()
 }
 
 fn diverges_in(c: C64, threshold: f64) -> i32 {
