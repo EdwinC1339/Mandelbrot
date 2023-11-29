@@ -1,3 +1,5 @@
 /target
 .vscode
 mandelbrot*
+perf.data*
+flamegraph*
